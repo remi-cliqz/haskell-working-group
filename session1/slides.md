@@ -233,10 +233,10 @@ Is there another possible implementation?
 
 Implement the `filter` function with following signature:
 ```haskell
-filter' :: (a -> Bool) -> [a] -> [a]
+filter :: (a -> Bool) -> [a] -> [a]
 
 -- Example:
--- filters' even [1, 2, 3, 4, 5, 6, 7] == [2, 4, 6]
+-- filters even [1, 2, 3, 4, 5, 6, 7] == [2, 4, 6]
 ```
 
 -------------------------------------------------------------------------------
