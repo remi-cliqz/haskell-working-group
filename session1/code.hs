@@ -14,6 +14,9 @@ import Prelude hiding
     , sum
     )
 
+main :: IO ()
+main = putStrLn "Hello World!"
+
 
 length :: [a] -> Int
 length [] = 0
