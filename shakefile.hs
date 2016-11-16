@@ -5,7 +5,7 @@ import Development.Shake.Util
 
 main :: IO ()
 main = shakeArgs shakeOptions{shakeFiles="_build"} $ do
-  want $ map (\x -> x </> "slides.html")["session1"]
+  want $ map (\x -> x </> "slides.html")["session1", "session2"]
 
   phony "clean" $ do
     putNormal "cleaning output"
