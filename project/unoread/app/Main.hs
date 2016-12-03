@@ -2,13 +2,18 @@
 
 module Main where
 
-import Control.Exception (Handler(..))
 import Protolude
 import Lib
+import Control.Exception (displayException)
 
 
 main :: IO ()
 main = do
-    lbs <- fetch "https://google.fr" `catches` [Handler (\ (ex :: HttpException) -> return "HttpException" :: IO LByteString),
-                                                Handler (\ (ex :: FetchException) -> return "FetchException" :: IO LByteString)]
-    print lbs
+    [rawUrl] <- getArgs
+    result <- fetch (toS rawUrl)
+    case result of
+      WrongUrl -> putText "Could not parse URL (It should either start by http:// or https://)"
+      Exception e -> do
+          putText "An exception was raised while fetching"
+          putStrLn . displayException $ e
+      Result lbs -> putStrLn . snd $ extract (toS rawUrl) lbs
