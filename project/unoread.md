@@ -169,7 +169,6 @@ Tasks:
 
   #. Add the type in the **export list** of the module
   #. Export it in the **src/Lib.hs** file too
-  #. Add your new module in **unoread.cabal**
   #. Use it in **app/Main.hs**
 
 The record can be instantiated as follows:
