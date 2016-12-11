@@ -194,8 +194,138 @@ Then you can test using `stack build` and `stack exec unoread-exe` to see what h
 \newpage
 ## Fetching
 
+Now we're going to implement our *fetcher*. Here is what we expect:
+
+- Give an `URL` as argument
+- Get raw data as output (Should be `ByteString`)
+- Gracefully handle errors (Type-safe API)
+
+The type signature of our `fetch` function should be something like:
+
+```haskell
+fetch :: Url -> IO (Either Exception LByteString)
+```
+
+Which means we take an URL as argument, and the result is an *effectful action* (`IO`) producing either an exception, or the content of the fetched page.
+
+There are a lot of libraries to perform HTTP/HTTPs fetching in Haskell, and the APIs can be very different. Here are a few of the options:
+
+- HTTP package (only HTTP, no HTTPs)
+- wreq
+- req
+- http-client
+- http-conduit
+
+They all have their pros and cons, and it's surprisingly hard to find a *simple* solution that would handle both HTTP and HTTPs. To avoid any complicated and uninteresting implementation, we will use the simpler `download-curl` package, which consists in a wrapper over `libcurl` exposing a very friendly API:
+
+```haskell
+import Network.Curl.Download.Lazy
+
+-- First argument is URL
+fetch :: String -> IO (Either String LByteString)
+fetch = openLazyURI
+```
+
+To be able to use this you need to:
+
+- Modify your `stack.yaml` to include an extra dependency:
+
+```haskell
+extra-deps:
+  - download-curl-0.1.4
+```
+
+- Modify your `unoread.cabal` to include an extra entry in `build-depends`:
+
+```haskell
+  build-depends:   base >= 4.7 && < 5
+                 , protolude >= 0.1.6 && < 0.2
+                 , download-curl
+```
+
+Once this is done, you can create the `src/Lib/Fetch.hs` file, with the following content:
+
+```haskell
+module Lib.Fetch (fetch) where
+
+import Lib.Prelude
+import Network.Curl.Download.Lazy
+
+-- Only needed because `String` is not exposed by
+-- our custom prelude (Protolude).
+type String = [Char]
+
+fetch :: String -> IO (Either String LByteString)
+fetch = openLazyURI
+```
+
+You then have to expose this as part of the public API in `src/Lib.hs`. Then you can give it a try in `ghci`:
+
+```haskell
+*Main Lib Lib.Extract Lib.Fetch Lib.Prelude Lib.Types.Article> result <- fetch "https://cliqz.com"
+*Main Lib Lib.Extract Lib.Fetch Lib.Prelude Lib.Types.Article> :type result
+result :: Either String LByteString
+```
+
 \newpage
-## Processing
+## Content Extraction
+
+The previous section didn't involve much thinking, because fetching is not the most exciting task we have to solve and it can be tricky to do it in Haskell (which is why we choose the simpler solution of using a wrapper over `curl`). This section is about extracting the actual content of a page, given the HTML content (output of our fetcher).
+
+There are various ways to implement content extraction, and this is still an open problem. Due to the huge variety of websites on the Web, it is very difficult to come up with a method able to extract the main content on an arbitrary page.
+
+We will first consider a super simple heuristic to extract text, which will allow us to play a bit with `bytestrings`, writing functions, composing them, getting help from types. And then we will see if we can find a more elaborate way to do it, as a bonus.
+
+We will now create an `src/Lib/Extract.hs` module with the following public API:
+
+```haskell
+module Lib.Extract where
+
+extract :: LByteString -> LByteString
+--         ^              ^
+--         raw content    text content
+```
+
+It takes the raw page content, and returns only the actual text.
+
+### Tag Soup
+
+First we need to be able to parse the HTML that will be returned by the fetcher. The simplest way to do this is to extract a list of tags (a *tag soup*) using the `tagsoup` package (it won't allow us to keep track of the arborescent structure of the page, but a stream of tags will be enough for our simple heuristic). Add it to your `unoread.cabal` file, then make use of the following functions (for more, have a [look at the documentation](https://hackage.haskell.org/package/tagsoup-0.14/docs/Text-HTML-TagSoup.html)):
+
+```haskell
+import Text.HTML.TagSoup
+
+parseTags :: LByteString -> [Tag LByteString]
+isTagText :: Tag LByteString -> Bool
+fromTagText :: Tag LByteString -> LByteString
+maybeTagText :: Tag LByteString -> Maybe LByteString
+```
+
+### How to differentiate text from the rest?
+
+If you simply extract `TagText` tags from the *soup*, you will see that you get a lot of javascript code along with the actual text content of the page. A simple way to discard the code is to compute the ratio of number of punctuation and symboles, over the total number of chars in any block of text. Using a threshold of `0.1` should then do the trick (from empiric testing, you can come up with your own value here).
+
+You might want to implement the following functions (it's only a suggestion, you can do it the way you like!):
+
+```haskell
+-- Get tag soup from HTML
+parseHTML :: LByteString -> [Tag LByteString]
+
+-- Only keep text tags and get the actual content of each of them
+getTextTags :: [Tag LByteString] -> [LByteString]
+
+-- Discard code blocks to only keep text
+countSpecialCharacters :: LByteString -> Int
+ratio :: LByteString -> Double
+getContent :: [LByteString] -> [LByteString]
+```
+
+Some functions you might want to use can be found in:
+
+- [`Data.Char`](https://hackage.haskell.org/package/base-4.9.0.0/docs/Data-Char.html)
+- [`Data.ByteString.Lazy.Char8`](https://hackage.haskell.org/package/bytestring-0.10.8.1/docs/Data-ByteString-Lazy-Char8.html)
+- [`Data.ByteString.Lazy`](https://hackage.haskell.org/package/bytestring-0.10.8.1/docs/Data-ByteString-Lazy.html)
+
 
 \newpage
 ## CLI
